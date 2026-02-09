@@ -36,6 +36,24 @@ function emitStatsUpdate(io) {
   io.emit('stats:updated', stats);
 }
 
+// === ADMIN ENDPOINTS ===
+
+// DELETE /api/bets/:id/admin-delete - Remove a bet entirely
+router.delete('/:id/admin-delete', (req, res) => {
+  const bet = db.prepare('SELECT * FROM bets WHERE id = ?').get(req.params.id);
+  if (!bet) {
+    return res.status(404).json({ message: 'Bet not found' });
+  }
+
+  db.prepare('DELETE FROM bets WHERE id = ?').run(req.params.id);
+
+  const io = req.app.get('io');
+  io.emit('bet:cancelled', { ...enrichBet(bet), status: 'CANCELLED', _deleted: true });
+  emitStatsUpdate(io);
+
+  res.json({ message: 'Bet deleted', id: req.params.id });
+});
+
 // POST /api/bets - Create a new bet
 router.post('/', (req, res) => {
   const { proposition, stake, creatorSide, userId } = req.body;
@@ -262,21 +280,7 @@ router.get('/leaderboard/data', (req, res) => {
 
 // === ADMIN ENDPOINTS ===
 
-// DELETE /api/bets/:id/admin-delete - Remove a bet entirely
-router.delete('/:id/admin-delete', (req, res) => {
-  const bet = db.prepare('SELECT * FROM bets WHERE id = ?').get(req.params.id);
-  if (!bet) {
-    return res.status(404).json({ message: 'Bet not found' });
-  }
 
-  db.prepare('DELETE FROM bets WHERE id = ?').run(req.params.id);
-
-  const io = req.app.get('io');
-  io.emit('bet:cancelled', { ...enrichBet(bet), status: 'CANCELLED', _deleted: true });
-  emitStatsUpdate(io);
-
-  res.json({ message: 'Bet deleted', id: req.params.id });
-});
 
 // POST /api/bets/:id/admin-undo-accept - Revert accepted bet back to open
 router.post('/:id/admin-undo-accept', (req, res) => {
